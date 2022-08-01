@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: script.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: script.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * Script.js: Código central que controla a interface da urna eletrônica.
+ */
+
+const rVotoPara = document.querySelector('.esquerda .rotulo.r1 span')
+const rCargo = document.querySelector('.esquerda .rotulo.r2 span')
+const numeros = document.querySelector('.esquerda .rotulo.r3')
+const rDescricao = document.querySelector('.esquerda .rotulo.r4')
+const rMensagem = document.querySelector('.esquerda .rotulo.r4 .mensagem')
+const rNomeCandidato = document.querySelector('.esquerda .rotulo.r4 .nome-candidato')
+const rPartidoPolitico = document.querySelector('.esquerda .rotulo.r4 .partido-politico')
+const rNomeVice = document.querySelector('.esquerda .rotulo.r4 .nome-vice')
+const rRodape = document.querySelector('.tela .rodape')
+
+const rCandidato = document.querySelector('.direita .candidato')
+const rVice = document.querySelector('.direita .candidato.menor')
+
+const votos = []
+
+var etapaAtual = 0
+var etapas = null
+var numeroDigitado = ''
+var votoEmBranco = false
+
+ajax('etapas.json', 'GET', (response) => {
+  etapas = JSON.parse(response)
+
+  comecarEtapa()
+})
+
+
+window.onload = () => {
+  let btns = document.querySelectorAll('.teclado--botao')
+  for (let btn of btns) {
+    btn.onclick = () => {
+      clicar(btn.innerHTML)
+    }
+  }
+
+  document.querySelector('.teclado--botao.branco').onclick = () => branco()
+  document.querySelector('.teclado--botao.laranja').onclick = () => corrigir()
+  document.querySelector('.teclado--botao.verde').onclick = () => confirmar()
+  document.querySelector('#reset-vote').onclick = () => resetVote()
+  document.querySelector('#finish').onclick = () => endVoting()
+}
+
+/**
+ * Inicia a etapa atual.
+ */
+function comecarEtapa() {
+  let etapa = etapas[etapaAtual]
+  console.log('Etapa atual: ' + etapa['titulo'])
+
+  numeroDigitado = ''
+  votoEmBranco = false
+
+  numeros.style.display = 'flex'
+  numeros.innerHTML = ''
+  rVotoPara.style.display = 'none'
+  rCandidato.style.display = 'none'
+  rVice.style.display = 'none'
+  rDescricao.style.display = 'none'
+  rMensagem.style.display = 'none'
+  rNomeCandidato.style.display = 'none'
+  rPartidoPolitico.style.display = 'none'
+  rNomeVice.style.display = 'none'
+  rRodape.style.display = 'none'
+
+  for (let i = 0; i &lt; etapa['numeros']; i++) {
+    let pisca = i == 0 ? ' pisca' : ''
+    numeros.innerHTML += `
+      &lt;div class="numero${pisca}">&lt;/div>
+    `
+  }
+
+  rCargo.innerHTML = etapa['titulo']
+}
+
+/**
+ * Procura o candidato pelo número digitado,
+ * se encontrar, mostra os dados dele na tela.
+ */
+function atualizarInterface() {
+  console.log('Número Digitado:', numeroDigitado)
+
+  let etapa = etapas[etapaAtual]
+  let candidato = null
+
+  for (let num in etapa['candidatos']) {
+    if (num == numeroDigitado) {
+      candidato = etapa['candidatos'][num]
+      break
+    }
+  }
+
+  console.log('Candidato: ' + candidato)
+
+  rVotoPara.style.display = 'inline'
+  rDescricao.style.display = 'block'
+  rNomeCandidato.style.display = 'block'
+  rPartidoPolitico.style.display = 'block'
+
+  if (candidato) {
+    let vice = candidato['vice']
+
+    rRodape.style.display = 'block'
+    rNomeCandidato.querySelector('span').innerHTML = candidato['nome']
+    rPartidoPolitico.querySelector('span').innerHTML = candidato['partido']
+
+    rCandidato.style.display = 'block'
+    rCandidato.querySelector('.imagem img').src = `img/${candidato['foto']}`
+    rCandidato.querySelector('.cargo p').innerHTML = etapa['titulo']
+    
+    if (vice) {
+      rNomeVice.style.display = 'block'
+      rNomeVice.querySelector('span').innerHTML = vice['nome']
+      rVice.style.display = 'block'
+      rVice.querySelector('.imagem img').src = `img/${vice['foto']}`
+    } else {
+      rNomeVice.style.display = 'none'
+    }
+
+    return
+  }
+
+  if (votoEmBranco) return
+
+  // Anular o voto
+  rNomeCandidato.style.display = 'none'
+  rPartidoPolitico.style.display = 'none'
+  rNomeVice.style.display = 'none'
+
+  rMensagem.style.display = 'block'
+  rMensagem.classList.add('pisca')
+  rMensagem.innerHTML = 'VOTO NULO'
+}
+
+/**
+ * Verifica se pode usar o teclado e atualiza o número.
+ */
+function clicar(value) {
+  console.log(value)
+
+  let elNum = document.querySelector('.esquerda .rotulo.r3 .numero.pisca')
+  if (elNum &amp;&amp; ! votoEmBranco) {
+    numeroDigitado += (value)
+    elNum.innerHTML = value
+    elNum.classList.remove('pisca')
+
+    let proximoNumero = elNum.nextElementSibling
+    if (proximoNumero) {
+      proximoNumero.classList.add('pisca')
+    } else {
+      atualizarInterface()
+    }
+
+    (new Audio('audio/se1.mp3')).play()
+  }
+}
+
+/**
+ * Verifica se há número digitado, se não,
+ * vota em branco.
+ */
+function branco() {
+  console.log('branco')
+  
+  // Verifica se há algum número digitado,
+  // se sim, não vota
+  if (! numeroDigitado) {
+    votoEmBranco = true
+
+    numeros.style.display = 'none'
+    rVotoPara.style.display = 'inline'
+    rDescricao.style.display = 'block'
+    rMensagem.style.display = 'block'
+    rMensagem.innerHTML = 'VOTO EM BRANCO';
+
+    (new Audio('audio/se1.mp3')).play()
+  }
+
+}
+
+/**
+ * Reinicia a etapa atual.
+ */
+function corrigir() {
+  console.log('corrigir');
+  (new Audio('audio/se2.mp3')).play()
+  comecarEtapa()
+}
+
+/**
+ * Confirma o numero selecionado.
+ */
+function confirmar() {
+  console.log('confirmar')
+
+  let etapa = etapas[etapaAtual]
+
+  if (numeroDigitado.length == etapa['numeros']) {
+    if (etapa['candidatos'][numeroDigitado]) {
+      // Votou em candidato
+      votos.push({
+        'etapa': etapa['titulo'],
+        'numero': numeroDigitado
+      })
+      console.log(`Votou em ${numeroDigitado}`)
+    } else {
+      // Votou nulo
+      votos.push({
+        'etapa': etapa['titulo'],
+        'numero': 'nulo'
+      })
+      console.log('Votou Nulo')
+    }
+  } else if (votoEmBranco) {
+    // Votou em branco
+      votos.push({
+        'etapa': etapa['titulo'],
+        'numero': 'branco'
+      })
+      console.log('Votou em Branco')
+  } else {
+    // Voto não pode ser confirmado
+    console.log('Voto não pode ser confirmado')
+    return
+  }
+
+  if (etapas[etapaAtual + 1]) {
+    etapaAtual++
+  } else {
+    document.querySelector('.tela').innerHTML = `
+      &lt;div class="fim">FIM&lt;/div>
+    `
+    saveVote()
+  }
+
+  (new Audio('audio/se3.mp3')).play()
+  comecarEtapa()
+}
+
+/**
+ * Salva o voto de vereador e prefeito no banco de dados.
+ */
+function saveVote(){
+  $.ajax({
+    type:"POST",
+    url: "/backend/api/vote.php",
+    data: {'votos': votos},
+    success:function(d){console.log(d)},
+    error:function(e){
+      $('#results').html(e.responseText)
+    }
+  });
+}
+
+/**
+ * Reseta a tela para votar novamente.
+ */
+function resetVote(){
+  console.log('resetVote')
+  this.window.location.reload()
+}
+
+/**
+ * Finaliza eleição e mostra resultados.
+ */
+function endVoting(){
+  console.log('endVoting')
+  document.querySelector('.tela').innerHTML = `
+    &lt;div class="fim">FIM&lt;/div>
+  `
+  $('#reset-vote').remove()
+  $('#finish').remove()
+
+  $.ajax({
+    type:"POST",
+    url: "/backend/api/end_votes.php",
+    success:function(response){
+      console.log(response);
+      const r = JSON.parse(response)[0];
+      const tipos = ['vereador', 'prefeito'];
+      const candidatos = {
+        'vereador': etapas[0].candidatos,
+        'prefeito': etapas[1].candidatos,
+      }
+
+      // Preenche HTML com resultados da eleição.
+      for (let i = 0; i &lt; tipos.length; i++) {
+        const tipo = tipos[i];
+        $(`#${tipo}_votos_nulos`).html(r[tipo].nulos)
+        $(`#${tipo}_votos_brancos`).html(r[tipo].brancos)
+        $(`#${tipo}_votos_validos`).html(r[tipo].total)
+
+        Object.entries(r[tipo].votos).map(item => {
+          const [numero, qtd_votos] = item;
+          const candidato = candidatos[tipo][numero]
+          $(`#tabela-${tipo}`).append('&lt;tr>\
+          &lt;td>&lt;div style="display: flex; align-items: center; max-width: 30rem; margin: auto">&lt;img \
+          src="/img/' + candidato.foto + '" style="margin-right: 15px;" \
+          >' + candidato.nome + (numero == r[tipo]['vencedor'] ? "&lt;b> (VENCEDOR)&lt;/b>" : "") + '&lt;/div>&lt;/td>\
+          &lt;td>' + qtd_votos + '&lt;/td>\
+          &lt;/tr>')
+        })
+      }
+
+      $('#results').css('display', 'flex')
+    },
+    error:function(e){
+      $('#results').html(e.responseText)
+    }
+  });
+}</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#atualizarInterface">atualizarInterface</a></li><li><a href="global.html#branco">branco</a></li><li><a href="global.html#clicar">clicar</a></li><li><a href="global.html#comecarEtapa">comecarEtapa</a></li><li><a href="global.html#confirmar">confirmar</a></li><li><a href="global.html#corrigir">corrigir</a></li><li><a href="global.html#endVoting">endVoting</a></li><li><a href="global.html#resetVote">resetVote</a></li><li><a href="global.html#rVotoPara">rVotoPara</a></li><li><a href="global.html#saveVote">saveVote</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.11</a> on Sun Jul 31 2022 21:53:12 GMT-0300 (Horário Padrão de Brasília)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
