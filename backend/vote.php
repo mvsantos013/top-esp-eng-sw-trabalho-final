@@ -1,4 +1,8 @@
 <?php
+
+    // Este arquivo é responsável por receber o voto do usuário e salvar no banco de dados.
+
+    // Carrega arquivo de configuração do banco de dados
     $root = $_SERVER['DOCUMENT_ROOT'];
     include_once($root.'/backend/database.php');
     $db = new Database();

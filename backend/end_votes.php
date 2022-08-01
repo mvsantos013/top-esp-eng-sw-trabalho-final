@@ -1,4 +1,8 @@
 <?php
+
+    // Este arquivo é responsável por calcular resultados da eleição e resetar o banco de dados.
+
+    // Carrega arquivo de configuração do banco de dados
     $root = $_SERVER['DOCUMENT_ROOT'];
     include_once($root.'/backend/database.php');
     $db = new Database();
